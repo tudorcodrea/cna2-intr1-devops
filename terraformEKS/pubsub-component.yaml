@@ -1,0 +1,11 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+  namespace: microservices
+spec:
+  type: pubsub.snssqs
+  version: v1
+  metadata:
+  - name: region
+    value: us-east-1

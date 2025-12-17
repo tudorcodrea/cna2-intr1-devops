@@ -1,0 +1,120 @@
+
+$env:AWS_PROFILE = "cna2"
+aws_terraform_init.sh
+
+cd "C:\Work\Documentation\Architecture\CNA 2\AWS kubernetes\introspect1\terraformEKS"
+terraform init
+terraform plan --var-file=dev.tfvars
+terraform apply --var-file=dev.tfvars
+
+Create the cluster:
+#terraform apply --var-file=dev.tfvars --var="aws_profile=cna2" --var enable_k8s_resources=false
+#aws eks update-kubeconfig --name introspect1Eks --region us-east-1 --profile cna2
+#terraform apply --var-file=dev.tfvars --var="aws_profile=cna2" --var enable_k8s_resources=true
+
+- rename to NOT take into account api_gateway.tf (since k8s is not yet provisioned and microservices not yet deployed)
+
+aws eks update-kubeconfig --name introspect1Eks --region us-east-1 --profile cna2
+
+kubectl create namespace microservices
+
+kubectl apply -f "C:\Work\Documentation\Architecture\CNA 2\AWS kubernetes\introspect1\microservices\pubsub-sa.yaml"
+kubectl apply -f "C:\Work\Documentation\Architecture\CNA 2\AWS kubernetes\introspect1\microservices\subscription-crd.yaml"
+kubectl apply -f "C:\Work\Documentation\Architecture\CNA 2\AWS kubernetes\introspect1\microservices\order-subscription.yaml"
+
+aws sns subscribe --topic-arn arn:aws:sns:us-east-1:660633971866:product-events-topic --protocol sqs --notification-endpoint arn:aws:sqs:us-east-1:660633971866:order-service-queue
+
+--- run the github actions pipelines on the Orders and Products microservices
+
+- rename the gateway tf to apply it with terraform
+
+kubectl get svc product-service -n microservices -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+-> line 27 in api_gateway change it with hostname response
+
+terraform apply --var-file=dev.tfvar
+
+terraform output api_gateway_url
+
+#kubectl apply -f 'C:\Work\Documentation\Architecture\CNA 2\AWS kubernetes\introspect1\microservices\order-subscription.yaml'
+kubectl apply -f C:\Work\Documentation\Architecture\CNA 2\AWS kubernetes\introspect1\microservices\order-subscription.yaml
+kubectl get subscriptions -n microservices
+
+- - rename BACK api_gateway.tf 
+terraform apply --var-file=dev.tfvar
+
+
+#debug
+kubectl get pods -n microservices
+kubectl logs product-service-7f79d65948-kxzqf -n microservices
+
+Destroy when done (to avoid costs)
+terraform destroy -var-file=dev.tfvars
+
+# if needed
+#kubectl apply -f "c:\Work\Documentation\Architecture\CNA 2\AWS kubernetes\introspect1\microservices\cna2-intr1-product-service\service.yaml"
+#kubectl port-forward svc/product-service 8080:80 -n microservices
+
+Summary of Completed Setup:
+✅ EKS cluster with Dapr sidecars
+✅ SNS topic for pub/sub messaging
+✅ Order and product microservices deployed
+✅ Dapr subscription for order service
+✅ API Gateway routing to product service LoadBalancer
+✅ IRSA for secure SNS access
+
+=====stress testing
+Threads: Increased to 20 concurrent users
+Ramp-up Time: 5 seconds
+Duration: 5 minutes (300 seconds) with scheduler enabled
+Loops: Infinite (continues until duration ends)
+Constant Throughput Timer: Added with 200 requests per minute (ensures the target rate is maintained across all threads)
+How It Works:
+The test will run for 5 minutes, sending requests at a controlled rate of 200 per minute (approximately 3.33 requests per second).
+Random product data is generated for each request.
+The throughput timer regulates the pace to avoid overwhelming the service while meeting the minimum requirement.
+To Run:
+GUI: jmeter -t jmeter_post_products.jmx
+Non-GUI: jmeter -n -t jmeter_post_products.jmx -l results.jtl
+This setup will generate sustained workload for testing the product service under load. If you need to adjust the duration, rate, or add more elements (like assertions or listeners), let me know!
+
+
+==============Monitoring CloudWatch
+SNS Metrics: Added NumberOfNotificationsDelivered and NumberOfNotificationsFailed for delivery tracking.
+ELB Metrics: Added Latency, HTTPCode_Backend_4XX, and HTTPCode_Backend_5XX for performance and error monitoring.
+New API Gateway Widget: Tracks Count, 4XXError, 5XXError, and Latency for the product-service-api.
+New EKS Pod Metrics Widget: Monitors pod_cpu_utilization, pod_memory_utilization, pod_network_rx_bytes, and pod_network_tx_bytes in the microservices namespace (requires Container Insights enabled).
+Updated Logs Widget: Now focuses on application logs for the product service.
+Additional Alarms:
+API Gateway 5XX Errors: Alerts if >5 5XX errors occur in 5 minutes.
+ELB High Latency: Alerts if average latency exceeds 1 second.
+Missing Telemetry Points Addressed:
+Microservice Liveliness: Covered by ELB healthy/unhealthy counts and EKS pod metrics.
+Event/Activity Monitoring: Enhanced SNS metrics for message delivery/failures.
+Performance: Latency and error rates for ELB and API Gateway.
+Resource Usage: CPU/memory/network for pods.
+Application Logs: Filtered logs for troubleshooting.
+
+The communication flow between ProductService and OrderService (via SNS publishing and SQS consumption) can be monitored using the existing CloudWatch dashboard in AWS. Here's how to set it up and what to monitor:
+
+Existing Monitoring Setup
+CloudWatch Dashboard: The Microservices-Monitoring-Dashboard in CloudWatch already includes widgets for:
+
+SNS metrics: Number of messages published, delivered, failed, and publish size for the product-events-topic.
+ELB metrics: Healthy/unhealthy hosts, request count, latency, and error rates for the load balancer.
+EKS Pod metrics: CPU/memory utilization and network traffic for pods in the microservices namespace.
+API Gateway metrics: Request count, 4XX/5XX errors, and latency for the product-service-api.
+Alarms: There are alarms for high SNS message rates, unhealthy ELB hosts, API Gateway 5XX errors, and high EKS node CPU usage.
+
+To view the dashboard:
+
+Go to the AWS CloudWatch console.
+Select "Dashboards" and open Microservices-Monitoring-Dashboard.
+Monitor the SNS widgets for message flow (published → delivered).
+Check ELB and API Gateway widgets for service health and request handling.
+Log Monitoring
+Application logs are currently available via kubectl logs for the pods (e.g., kubectl logs -n microservices product-service-pod and kubectl logs -n microservices order-service-pod). To integrate logs into AWS for centralized monitoring:
+
+
+
+
+
