@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+  namespace: microservices
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-target: "HTTP:80/products"
+spec:
+  selector:
+    app: product-service
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: LoadBalancer

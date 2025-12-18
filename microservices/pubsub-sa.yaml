@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pubsub-sa
+  namespace: microservices
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::660633971866:role/introspect1Eks-pubsub-role

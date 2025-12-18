@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  namespace: microservices
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: product-service
+  template:
+    metadata:
+      labels:
+        app: product-service
+    spec:
+      serviceAccountName: pubsub-sa
+      containers:
+      # 🔵 APPLICATION CONTAINER (Only your app container)
+      - name: product-service
+        image: 660633971866.dkr.ecr.us-east-1.amazonaws.com/introspect1eks-product:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: sns.topic.arn
+          value: "arn:aws:sns:us-east-1:660633971866:product-events-topic"
+
+---
+# 🟡 KUBERNETES SERVICE (Remains the same)
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+  namespace: microservices
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-target: "HTTP:80/products"
+spec:
+  selector:
+    app: product-service
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: LoadBalancer
